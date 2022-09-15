@@ -1,0 +1,49 @@
+#payment-data, #payment-data-submit, #go-to-payment, .btn-go-to-payment-wrapper {
+  display: none !important;
+}
+
+.payment-confirmation-wrap {
+  display: block !important;
+}
+
+#creditcard-container {
+  display: none;
+}
+
+#chk-card-form {
+  min-height: 100%;
+  height: 500px;    
+  width: 100%;
+}
+
+#root > .pa5.bg-muted-5 > .mb6, .vtex-input > .vtex-input__label {
+  margin-bottom: 1rem !important;
+}
+
+.vtex-dropdown__button.pl5 {
+  padding-left: 1rem !important;
+}
+
+
+#root input {
+  padding: 4px 6px;
+  color: #555;
+  vertical-align: middle;
+}
+
+#root > .pa5.bg-muted-5, #root > .fw6.pb5.ph5 {
+  padding: 1rem !important;    
+}
+
+#root > * > .flex.items-center.mt6 {
+  margin-top: 1rem !important;   
+}
+
+#root > * > * > .normal.c-muted-1.ml7.mw4 {
+  margin-left: 1rem !important;
+}
+
+
+#payment-group-custom201PaymentGroupPaymentGroup, #payment-group-creditDirectSalePaymentGroup, #payment-group-debitDirectSalePaymentGroup {
+  display: none;
+}

@@ -1,0 +1,25 @@
+/* Content copied from “checkout-custom.css” at 2017-12-20T18:09:13.670Z */
+
+/* /files/checkout-custom.css */
+
+.navbar {
+  height: 51px;
+  background: #f8f8f8;
+  border: 1px solid #e7e7e7;
+}
+
+.navbar .container {
+  width: 945px;
+}
+
+.navbar .navbar-brand {
+  float: left;
+  padding: 15px 15px 15px 0;
+  font-size: 18px;
+  line-height: 20px;
+  height: 50px;
+}
+
+#payment-group-custom201PaymentGroupPaymentGroup, #payment-group-creditDirectSalePaymentGroup, #payment-group-debitDirectSalePaymentGroup {
+  display: none;
+}

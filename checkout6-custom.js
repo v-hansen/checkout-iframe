@@ -6,31 +6,37 @@ $(function () {
             sendEventToIframe('setActive.vtex', true)
             sendEventToIframe('setVisibility.vtex', true)
             sendEventToIframe('orderFormUpdated.vtex', orderForm)
+            console.log("orderFormUpdated.vtex")
         } catch (ex) {
             console.log(ex)
         }
     })
 
-    function sendEventToIframe(ev, args) {
-        try {
-            $('#chk-card-form')[0]?.contentWindow?.postMessage({ event: ev, arguments: [args] }, "https://io.vtexpayments.com.br")
-        } catch (error) {
-            console.log(error)
+    $(window).on("message onmessage", function(e) {
+        console.log(e.originalEvent.data.event)
+        console.log(e.originalEvent.data.arguments)
+        
+        if(e.originalEvent.data.event == 'paymentSuccess.vtex'){
+            const myArray = e.originalEvent.data.arguments[0].split("/");
+            gatewayCallback(myArray[3])
         }
-    }
+    })
+    
 })
+
+function sendEventToIframe(ev, args) {
+    try {
+        $('#chk-card-form')[0]?.contentWindow?.postMessage({ event: ev, arguments: [args] }, "https://io.vtexpayments.com.br")
+    } catch (error) {
+        console.log(error)
+    }
+}
 
 var iframeReference = null
 
-function loadPostRobotScript() {
-    var script = document.createElement("script")
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/post-robot/10.0.35/post-robot.min.js"
-    script.onload = init()
-    document.head.appendChild(script)
-}
-
-function handlePaymentError() {
+function handlePaymentError(err) {
     console.log("HELP!")
+    console.log("erro", err)
 }
 
 function sendBankslipOptionPaymentData(ev) {
@@ -93,58 +99,85 @@ function sendSavedCreditCardOptionPaymentData(ev, savedCard) {
     })
 }
 
+getCookie = function(cookieName) {
+    return ("; " + document.cookie).split("; " + cookieName + "=").pop().split(";").shift()
+}
+
+getSessionId = function() {
+    return getCookie("VtexRCSessionIdv7")
+}
+,
+getMacId = function() {
+    return getCookie("VtexRCMacIdv7")
+}
+
 async function sendPaymentData(transactionData) {
-    //TODO: Must create an array of Payments if there is more than one - removing forced index 0.
+    
+
+    var deviceFingerprintIdCSV4 = 10000000 + Math.floor(Math.random() * 99999999);
+    (function (a, b, c, d, e, f, g) {
+    a['CsdpObject'] = e; a[e] = a[e] || function () {
+    (a[e].q = a[e].q || []).push(arguments)
+    }, a[e].l = 1 * new Date(); f = b.createElement(c),
+    g = b.getElementsByTagName(c)[0]; f.async = 1; f.src = d; g.parentNode.insertBefore(f, g)
+    })(window, document, 'script', '//device.clearsale.com.br/p/fp.js', 'csdp');
+    csdp('app', 'seu-app');
+    csdp('sessionid', deviceFingerprintIdCSV4);
+
     var allPayments = [{
-        "transaction": {
-            "id": transactionData.id,
-            "merchantName": transactionData.paymentData.payments[0].merchantSellerPayments[0].merchantName
+        transaction: {
+            id: transactionData.id,
+            merchantName: transactionData.paymentData.payments[0].merchantSellerPayments[0].id
         },
-        "paymentSystem": transactionData.paymentData.payments[0].paymentSystem,
-        "installments": transactionData.paymentData.payments[0].installments,
-        "value": transactionData.paymentData.payments[0].value,
-        "referenceValue": transactionData.paymentData.payments[0].referenceValue,
-        "accountId": transactionData.paymentData.payments[0].accountId,
-        "bin": transactionData.paymentData.payments[0].bin
+        id:transactionData.paymentData.payments[0].merchantSellerPayments[0].id,
+
+        paymentSystem: transactionData.paymentData.payments[0].paymentSystem,
+        fields: {
+            deviceFingerprint: deviceFingerprintIdCSV4
+        },
+        hasDefaultBillingAddress: true,
+        isBillingAddressDifferent: false,
+        installments: transactionData.paymentData.payments[0].installments,
+        value: transactionData.paymentData.payments[0].value,
+        referenceValue: transactionData.paymentData.payments[0].referenceValue,
+        accountId: transactionData.paymentData.payments[0].accountId,
+        bin: transactionData.paymentData.payments[0].bin,
+        currencyCode: "BRL",
+        originalPaymentIndex: 0
     }]
 
     var receiverUri = transactionData.receiverUri
     var orderGroupId = transactionData.orderGroup
-    var gatewayCallbackTemplatePath = transactionData.gatewayCallbackTemplatePath
     var transactionId = transactionData.id
+    var sessionId = getSessionId()
+    var macId = getMacId()
+    var extraData = {
+        sessionId: sessionId,
+        macId: macId,
+        receiverUri,
+        version: '1.20.0', layer: 'card-ui', transactionId: transactionId, 
+                orderFormId: window.vtexjs.checkout.orderForm.orderFormId
+    }
 
     var hasSensitiveData = true; //TRUE = has CreditCard
     if (hasSensitiveData) {
         try {
-            await postRobot.send(document.querySelector("#chk-card-form").contentWindow, 'sendPayments',
-                {
-                    payments: allPayments,
-                    receiverUri,
-                    orderId: orderGroupId,
-                    gatewayCallbackTemplatePath,
-                    transactionId,
-                })
+            $('#chk-card-form')[0]?.contentWindow?.postMessage({ event: 'sendPayments.vtex', arguments: [
+                allPayments,
+                transactionData,
+                extraData
+            ]}, "https://io.vtexpayments.com.br")
+
+            
         } catch (err) {
-            handlePaymentError()
-            return
+            handlePaymentError(err)
+            return err
         }
-    } else {
-        var payment_url = "/api/payments/pub/transactions/" + transactionData.id + "/payments?orderId=" + orderGroupId
-        const paymentsResponse = await fetch(payment_url,
-            {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify(allPayments),
-            })
-        if (paymentsResponse.status !== 201) {
-            handlePaymentError()
-            return
-        }
-    }
+    } 
 }
 
-async function gatewayCallback(transactionData) {
-    var callback_url = "/api/checkout/pub/gatewayCallback/" + transactionData.orderGroup
+async function gatewayCallback(orderGroup) {
+    var callback_url = "/api/checkout/pub/gatewayCallback/" + orderGroup
 
     fetch(callback_url, {
         method: 'POST',
@@ -152,11 +185,15 @@ async function gatewayCallback(transactionData) {
             'Accept': 'application/json',
             'Content-Type': 'application/json'
         }
-    }).then(res => console.log(res))
+    }).then(res => {
+        console.log(res)
+        window.location.href = '/checkout/orderPlaced/?og='+orderGroup
+    })
 }
 
 function placeOrder() {
     window.vtexjs.checkout.getOrderForm().done(function (vtexOrderForm) {
+        sendEventToIframe('orderFormUpdated.vtex', vtexOrderForm)
         var transaction_url = "/api/checkout/pub/orderform/" + vtexOrderForm.orderFormId + "/transaction"
         var transaction_content = {
             "referenceId": vtexOrderForm.orderFormId,
@@ -174,12 +211,9 @@ function placeOrder() {
             },
             body: JSON.stringify(transaction_content)
         }).then(res =>
-            //TODO: Handle errors before parsing response!
             res.json()
         ).then(function (transactionData) {
-            sendPaymentData(transactionData, vtexOrderForm.value).then(function () {
-                //TODO: Handle error messages before going further!
-                gatewayCallback(transactionData)
+            sendPaymentData(transactionData, vtexOrderForm.value).then(function (err) {
             })
         })
     })
@@ -246,7 +280,7 @@ function initUserInterface(vtexOrderForm) {
     })
     button_place_order.on('click', placeOrder)
     $('.payment-confirmation-wrap').append(button_place_order)
-
+    insertPaymentIframe("NEWCARD");
 }
 
 function insertPaymentIframe(type) {
@@ -261,58 +295,19 @@ function insertPaymentIframe(type) {
         class: "some-className",
         scrolling: "no",
         frameBorder: "0",
-        onload: setupPaymentIframe(),
         src: iframeURLProd + iframe_src_opt
     })
     $('#creditcard-container').empty().append(paymentIframe)
 }
 
-function setupPaymentIframe() {
-    radio("paymentData.paymentGroup.iFrame.creditCardPaymentGroup.sendOrderForm").broadcast();
-
-    window.vtexjs.checkout.getOrderForm().done(function (vtexOrderForm) {
-        var paymentSystems = vtexOrderForm.paymentData.paymentSystems
-        var creditCardPaymentSystems = paymentSystems.filter((paymentSystem) => paymentSystem.groupName === 'creditCardPaymentGroup')
-
-        setTimeout(async function () {
-            await postRobot.send(document.querySelector("#chk-card-form").contentWindow, 'setup', {
-                stylesheetsUrls: [
-                    "https://vtexprojectcheckoutapp.myvtex.com/files/checkout6-custom.css",
-                    "https://unpkg.com/tachyons@4/css/tachyons.min.css",
-                    "https://io.vtex.com.br/front-libs/font-awesome/3.2.1/css/font-awesome.min.css"
-                ],
-                paymentSystems: creditCardPaymentSystems,
-            })
-            radio("paymentData.paymentGroup.iFrame.creditCardPaymentGroup.sendOrderForm").broadcast();
-
-        }, 1000);
-    })
-
-}
-
-
-//Post-Robot interface
-function createPaymentSystemListener() {
-    const listener = postRobot.on('paymentSystem', ({ data }) => {
-        //setSelectedPaymentSystem(data)
-        console.log('PaymentSystem:', data)
-    })
-    return () => listener.cancel()
-}
-
 function init() {
     console.log('Doing something nasty')
     window.vtexjs.checkout.getOrderForm().done(function (vtexOrderForm) {
-        //initProductList(vtexOrderForm)
         initUserInterface(vtexOrderForm)
-        //insertPaymentIframe()
-
-        //Post-Robot interface init
-        createPaymentSystemListener()
     })
 }
-
+                                            
 window.addEventListener('load', function () {
-    loadPostRobotScript() //only needed when you don't control HTML initial rendering
-    //init()
+   init()
 })
+
